@@ -1,0 +1,16 @@
+# KubeRay Operator Helm values
+# helm install kuberay-operator kuberay/kuberay-operator -n ml-training -f this file
+
+batchScheduler:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Watch all namespaces (set to specific namespace in prod)
+watchNamespace: "ml-training"

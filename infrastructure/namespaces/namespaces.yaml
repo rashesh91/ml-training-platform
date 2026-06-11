@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml-training
+  labels:
+    app.kubernetes.io/part-of: ml-training-platform
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ml-training-quota
+  namespace: ml-training
+spec:
+  hard:
+    requests.cpu: "32"
+    requests.memory: 128Gi
+    limits.cpu: "64"
+    limits.memory: 256Gi
+    requests.nvidia.com/gpu: "8"
+    limits.nvidia.com/gpu: "8"
+    pods: "100"
+    persistentvolumeclaims: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: ml-training
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi

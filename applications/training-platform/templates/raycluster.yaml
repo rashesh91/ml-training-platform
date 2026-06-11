@@ -1,0 +1,138 @@
+{{- if .Values.rayCluster.enabled }}
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: training-cluster
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ray-cluster
+    component: training
+spec:
+  rayVersion: "2.11.0"
+
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      num-cpus: "0"
+    template:
+      metadata:
+        labels:
+          app: ray-head
+      spec:
+        serviceAccountName: {{ .Values.serviceAccount.name }}
+        containers:
+          - name: ray-head
+            image: rayproject/ray:2.11.0-py311
+            imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+            ports:
+              - containerPort: 6379
+                name: gcs
+              - containerPort: 8265
+                name: dashboard
+              - containerPort: 10001
+                name: client
+            resources:
+              requests:
+                memory: 2Gi
+                cpu: "1"
+              limits:
+                memory: 4Gi
+                cpu: "2"
+            env:
+              - name: RAY_DISABLE_MEMORY_MONITOR
+                value: "1"
+              - name: MINIO_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: minio-credentials
+                    key: endpoint
+              - name: MINIO_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: minio-credentials
+                    key: access_key
+              - name: MINIO_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: minio-credentials
+                    key: secret_key
+              - name: MLFLOW_TRACKING_URI
+                value: {{ .Values.mlflow.trackingUri | quote }}
+
+  workerGroupSpecs:
+    - replicas: {{ .Values.rayCluster.replicas.workers }}
+      minReplicas: 0
+      maxReplicas: 4
+      groupName: gpu-workers
+      rayStartParams:
+        {{- if .Values.rayCluster.gpu.enabled }}
+        num-gpus: {{ .Values.rayCluster.gpu.count | quote }}
+        {{- end }}
+      template:
+        metadata:
+          labels:
+            app: ray-worker
+            workload: gpu-training
+        spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
+          {{- if .Values.rayCluster.gpu.enabled }}
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            nvidia.com/gpu: "true"
+          {{- end }}
+          containers:
+            - name: ray-worker
+              image: "{{ .Values.global.imageRegistry }}{{ .Values.fineTuner.image }}"
+              imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+              resources:
+                requests:
+                  memory: 8Gi
+                  cpu: "4"
+                  {{- if .Values.rayCluster.gpu.enabled }}
+                  nvidia.com/gpu: {{ .Values.rayCluster.gpu.count }}
+                  {{- end }}
+                limits:
+                  memory: 16Gi
+                  cpu: "8"
+                  {{- if .Values.rayCluster.gpu.enabled }}
+                  nvidia.com/gpu: {{ .Values.rayCluster.gpu.count }}
+                  {{- end }}
+              env:
+                - name: MINIO_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-credentials
+                      key: endpoint
+                - name: MINIO_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-credentials
+                      key: access_key
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-credentials
+                      key: secret_key
+                - name: MLFLOW_TRACKING_URI
+                  value: {{ .Values.mlflow.trackingUri | quote }}
+---
+# Ray Dashboard service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ray-dashboard
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ray-head
+spec:
+  selector:
+    app: ray-head
+  ports:
+    - name: dashboard
+      port: 8265
+      targetPort: 8265
+{{- end }}

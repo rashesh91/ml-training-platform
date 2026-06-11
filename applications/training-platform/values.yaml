@@ -1,0 +1,51 @@
+global:
+  imageRegistry: "ghcr.io/rashesh91/"
+  imagePullPolicy: IfNotPresent
+  namespace: ml-training
+
+serviceAccount:
+  name: ml-training-sa
+
+trainingApi:
+  enabled: true
+  image: "training-api:latest"
+  replicas: 1
+  port: 8004
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  env:
+    useArgo: "true"
+    argoNamespace: ml-training
+  ingress:
+    enabled: true
+    host: "training.YOUR_DOMAIN"
+
+fineTuner:
+  enabled: true
+  image: "fine-tuner:latest"
+  # Runs as RayJob (not a permanent Deployment)
+  # This section defines the container image used inside RayJob pods
+
+evaluator:
+  enabled: true
+  image: "evaluator:latest"
+  rougeThreshold: "0.05"
+
+rayCluster:
+  enabled: true
+  replicas:
+    workers: 1
+  gpu:
+    enabled: true
+    count: 1
+
+mlflow:
+  trackingUri: "http://mlflow.ml-training.svc.cluster.local:5000"
+
+minio:
+  endpoint: "http://minio.ml-training.svc.cluster.local:9000"

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: training-platform
+description: ML Training Platform — fine-tuning, evaluation, and model registry on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - ml
+  - training
+  - mlflow
+  - kuberay
+  - argo
+maintainers:
+  - name: rasheshpatel

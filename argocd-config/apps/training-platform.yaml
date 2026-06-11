@@ -1,0 +1,26 @@
+# Wave 4: Training Platform services (training-api, fine-tuner, evaluator, raycluster)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: training-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://github.com/rashesh91/ml-training-platform.git
+    targetRevision: HEAD
+    path: applications/training-platform
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

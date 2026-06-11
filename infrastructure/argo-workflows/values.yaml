@@ -1,0 +1,49 @@
+# Argo Workflows Helm values
+# helm install argo-workflows argo/argo-workflows -n ml-training -f this file
+
+workflow:
+  serviceAccount:
+    create: true
+    name: ml-training-sa
+  rbac:
+    create: true
+
+controller:
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  # Workflow execution namespace
+  workflowNamespaces:
+    - ml-training
+
+server:
+  enabled: true
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+
+  ingress:
+    enabled: true
+    hosts:
+      - argo.YOUR_DOMAIN
+    paths:
+      - /
+
+  # Disable auth for dev — enable SSO in prod
+  authModes:
+    - server
+
+executor:
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m

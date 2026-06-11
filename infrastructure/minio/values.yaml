@@ -1,0 +1,64 @@
+# MinIO Helm values
+# helm install minio minio/minio -n ml-training -f this file
+
+mode: standalone
+
+rootUser: minioadmin
+rootPassword: minioadmin  # Override with sealed-secret in production
+
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: standard
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 2Gi
+    cpu: 1
+
+service:
+  type: ClusterIP
+  port: 9000
+
+consoleService:
+  type: ClusterIP
+  port: 9001
+
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10g"
+  hosts:
+    - host: minio.YOUR_DOMAIN
+      paths:
+        - path: /
+          pathType: Prefix
+
+consoleIngress:
+  enabled: true
+  hosts:
+    - host: minio-console.YOUR_DOMAIN
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Create default buckets on startup
+buckets:
+  - name: datasets
+    policy: none
+    purge: false
+  - name: checkpoints
+    policy: none
+    purge: false
+  - name: models
+    policy: none
+    purge: false
+  - name: mlflow
+    policy: none
+    purge: false
+
+environment:
+  MINIO_REGION: us-east-1

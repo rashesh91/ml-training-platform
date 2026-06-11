@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ml-training
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: ML Training Platform — fine-tuning, evaluation, model registry
+  sourceRepos:
+    - "https://github.com/rashesh91/ml-training-platform.git"
+    - "https://helm.ngc.nvidia.com/nvidia"
+    - "https://kuberay.github.io/kuberay-helm-chart"
+    - "https://charts.min.io"
+    - "https://argoproj.github.io/argo-helm"
+  destinations:
+    - namespace: ml-training
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: ray.io
+      kind: "*"
+    - group: argoproj.io
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncPolicy:
+    automated: {}

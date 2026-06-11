@@ -1,0 +1,106 @@
+{{- if .Values.trainingApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: training-api
+    component: api
+spec:
+  replicas: {{ .Values.trainingApi.replicas }}
+  selector:
+    matchLabels:
+      app: training-api
+  template:
+    metadata:
+      labels:
+        app: training-api
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: training-api
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.trainingApi.image }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.trainingApi.port }}
+              name: http
+          env:
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: endpoint
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: access_key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: secret_key
+            - name: MLFLOW_TRACKING_URI
+              value: {{ .Values.mlflow.trackingUri | quote }}
+            - name: USE_ARGO
+              value: {{ .Values.trainingApi.env.useArgo | quote }}
+            - name: ARGO_NAMESPACE
+              value: {{ .Values.trainingApi.env.argoNamespace | quote }}
+          resources:
+            requests:
+              memory: {{ .Values.trainingApi.resources.requests.memory | quote }}
+              cpu: {{ .Values.trainingApi.resources.requests.cpu | quote }}
+            limits:
+              memory: {{ .Values.trainingApi.resources.limits.memory | quote }}
+              cpu: {{ .Values.trainingApi.resources.limits.cpu | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.trainingApi.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.trainingApi.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: training-api
+spec:
+  selector:
+    app: training-api
+  ports:
+    - name: http
+      port: {{ .Values.trainingApi.port }}
+      targetPort: {{ .Values.trainingApi.port }}
+{{- if .Values.trainingApi.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: training-api
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+spec:
+  rules:
+    - host: {{ .Values.trainingApi.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: training-api
+                port:
+                  number: {{ .Values.trainingApi.port }}
+{{- end }}
+{{- end }}

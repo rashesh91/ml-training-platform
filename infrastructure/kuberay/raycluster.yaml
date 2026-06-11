@@ -1,0 +1,76 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: training-cluster
+  namespace: ml-training
+  labels:
+    app: ml-training-platform
+spec:
+  rayVersion: "2.11.0"
+
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      num-cpus: "0"  # Head node does not run tasks
+    template:
+      metadata:
+        labels:
+          app: ray-head
+      spec:
+        serviceAccountName: ml-training-sa
+        containers:
+          - name: ray-head
+            image: rayproject/ray:2.11.0-py311
+            imagePullPolicy: IfNotPresent
+            ports:
+              - containerPort: 6379   # Redis (Ray GCS)
+              - containerPort: 8265   # Ray Dashboard
+              - containerPort: 10001  # Ray Client
+            resources:
+              requests:
+                memory: 2Gi
+                cpu: 1
+              limits:
+                memory: 4Gi
+                cpu: 2
+            env:
+              - name: RAY_DISABLE_MEMORY_MONITOR
+                value: "1"
+
+  workerGroupSpecs:
+    - replicas: 1
+      minReplicas: 0
+      maxReplicas: 4
+      groupName: gpu-workers
+      rayStartParams:
+        num-gpus: "1"
+      template:
+        metadata:
+          labels:
+            app: ray-worker
+            workload: gpu-training
+        spec:
+          serviceAccountName: ml-training-sa
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            nvidia.com/gpu: "true"
+          containers:
+            - name: ray-worker
+              image: rayproject/ray:2.11.0-py311-gpu
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  memory: 8Gi
+                  cpu: 4
+                  nvidia.com/gpu: 1
+                limits:
+                  memory: 16Gi
+                  cpu: 8
+                  nvidia.com/gpu: 1
+              env:
+                - name: NCCL_DEBUG
+                  value: INFO

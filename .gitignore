@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+*.egg-info/
+
+# Model weights — never commit
+*.bin
+*.safetensors
+*.gguf
+model-cache/
+.cache/
+
+# Secrets — never commit plain secrets
+secrets/*.yaml
+!secrets/sealed-secret-*.yaml
+*.key
+*.pem
+.env.local
+
+# Docker
+.dockerignore
+
+# Datasets — can be large
+*.jsonl
+!services/training-api/static/sample.jsonl
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Helm
+charts/
+*.tgz
+
+# MLflow local artifacts
+mlruns/
+mlartifacts/

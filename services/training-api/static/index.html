@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ML Training Platform</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+    --blue: #1f6feb;
+    --blue-hover: #388bfd;
+    --warn: #d29922;
+    --danger: #da3633;
+    --purple: #8957e5;
+    --teal: #138096;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 16px; }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header .badge { background: var(--blue); color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+
+  .layout { display: grid; grid-template-columns: 360px 1fr; gap: 0; height: calc(100vh - 56px); }
+
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h3 { font-size: 13px; font-weight: 600; margin-bottom: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; margin-top: 10px; }
+  label:first-of-type { margin-top: 0; }
+  input, select, textarea { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 10px; font-size: 13px; outline: none; transition: border-color 0.15s; }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+  input[type="range"] { padding: 0; accent-color: var(--blue); }
+  .range-row { display: flex; align-items: center; gap: 8px; }
+  .range-row input { flex: 1; }
+  .range-val { min-width: 36px; text-align: right; font-size: 12px; color: var(--muted); }
+
+  .drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; color: var(--muted); font-size: 13px; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--blue); background: rgba(31,111,235,0.05); color: var(--text); }
+  .drop-zone .icon { font-size: 28px; margin-bottom: 8px; }
+  .drop-zone .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: background 0.15s, opacity 0.15s; }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-blue:hover { background: var(--blue-hover); }
+  .btn-purple { background: var(--purple); color: #fff; }
+
+  .main { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+  .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge-status { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .badge-status.queued  { background: rgba(139,148,158,0.15); color: var(--muted); }
+  .badge-status.running { background: rgba(31,111,235,0.15); color: var(--blue-hover); }
+  .badge-status.evaluating { background: rgba(137,87,229,0.15); color: var(--purple); }
+  .badge-status.succeeded { background: rgba(35,134,54,0.15); color: #3fb950; }
+  .badge-status.failed   { background: rgba(218,54,51,0.15); color: #f85149; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .dot.pulse { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .stage-pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .stage-pill.None       { background: rgba(139,148,158,0.15); color: var(--muted); }
+  .stage-pill.Staging    { background: rgba(210,153,34,0.15); color: var(--warn); }
+  .stage-pill.Production { background: rgba(35,134,54,0.15); color: #3fb950; }
+  .stage-pill.Archived   { background: rgba(139,148,158,0.1); color: var(--muted); }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px; font-size: 13px; }
+
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .metric-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .metric-box .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-box .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .metric-box .value.green { color: #3fb950; }
+  .metric-box .value.blue  { color: var(--blue-hover); }
+  .metric-box .value.warn  { color: var(--warn); }
+
+  .log { background: #010409; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; max-height: 240px; overflow-y: auto; color: #7ee787; line-height: 1.6; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+  .toast { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 13px; min-width: 220px; animation: slide-in 0.2s ease; }
+  .toast.success { border-left: 3px solid #3fb950; }
+  .toast.error   { border-left: 3px solid #f85149; }
+  .toast.info    { border-left: 3px solid var(--blue); }
+  @keyframes slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  .mlflow-link { color: var(--blue-hover); text-decoration: none; font-size: 11px; }
+  .mlflow-link:hover { text-decoration: underline; }
+
+  select option { background: var(--surface); }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#388bfd" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+  <h1>ML Training Platform</h1>
+  <span class="badge">KubeRay + MLflow + Argo</span>
+  <span style="flex:1"></span>
+  <a id="mlflow-link" href="http://localhost:5000" target="_blank" class="mlflow-link">MLflow UI →</a>
+</header>
+
+<div class="layout">
+  <!-- Sidebar: submit form -->
+  <aside class="sidebar">
+    <div class="card">
+      <h3>Submit Fine-tuning Job</h3>
+
+      <label>Dataset (JSONL)</label>
+      <div class="drop-zone" id="drop-zone">
+        <div class="icon">📂</div>
+        <div id="drop-label">Drop .jsonl file here or click to browse</div>
+        <div class="hint">Format: {"prompt": "...", "response": "..."} per line</div>
+        <input type="file" id="dataset-file" accept=".jsonl,.json" style="display:none" />
+      </div>
+
+      <label>Model Name (registry key)</label>
+      <input type="text" id="model-name" placeholder="my-assistant-v1" value="my-assistant-v1" />
+
+      <label>Base Model</label>
+      <select id="base-model">
+        <option value="TinyLlama/TinyLlama-1.1B-Chat-v1.0">TinyLlama 1.1B — CPU-friendly (default)</option>
+        <option value="mistralai/Mistral-7B-Instruct-v0.2">Mistral 7B Instruct — needs GPU</option>
+        <option value="meta-llama/Llama-3.2-3B-Instruct">Llama 3.2 3B — mid-range</option>
+      </select>
+
+      <label>LoRA Rank <span style="font-size:11px;color:var(--muted)">(higher = more capacity)</span></label>
+      <div class="range-row">
+        <input type="range" id="lora-rank" min="4" max="64" step="4" value="16" oninput="document.getElementById('lora-rank-val').textContent=this.value" />
+        <span class="range-val" id="lora-rank-val">16</span>
+      </div>
+
+      <label>Epochs</label>
+      <div class="range-row">
+        <input type="range" id="epochs" min="1" max="10" step="1" value="3" oninput="document.getElementById('epochs-val').textContent=this.value" />
+        <span class="range-val" id="epochs-val">3</span>
+      </div>
+
+      <label>Learning Rate</label>
+      <select id="lr">
+        <option value="0.0002" selected>2e-4 (default)</option>
+        <option value="0.0001">1e-4 (conservative)</option>
+        <option value="0.0005">5e-4 (aggressive)</option>
+      </select>
+
+      <div style="margin-top:16px;">
+        <button class="btn btn-primary" id="submit-btn" onclick="submitJob()" disabled>
+          <span id="submit-label">Select dataset to enable</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sample Dataset</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Download a ready-to-use sample to test the pipeline.</p>
+      <button class="btn btn-blue btn-sm" onclick="downloadSample()">Download sample.jsonl</button>
+    </div>
+  </aside>
+
+  <!-- Main area: tabs -->
+  <main class="main">
+    <div>
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('jobs',this)">Training Jobs</div>
+        <div class="tab" onclick="showTab('models',this)">Model Registry</div>
+        <div class="tab" onclick="showTab('metrics',this)">Overview</div>
+      </div>
+
+      <!-- Jobs tab -->
+      <div id="tab-jobs">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Job ID</th>
+                <th>Model Name</th>
+                <th>Base Model</th>
+                <th>Status</th>
+                <th>ROUGE-L</th>
+                <th>Created</th>
+                <th>MLflow</th>
+              </tr>
+            </thead>
+            <tbody id="jobs-body">
+              <tr><td colspan="7" class="empty">No jobs yet. Submit your first fine-tuning job →</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Models tab -->
+      <div id="tab-models" style="display:none">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Model Name</th>
+                <th>Version</th>
+                <th>Stage</th>
+                <th>ROUGE-L</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="models-body">
+              <tr><td colspan="6" class="empty">No registered models yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Metrics tab -->
+      <div id="tab-metrics" style="display:none">
+        <div class="metrics-grid" id="metrics-grid">
+          <div class="metric-box"><div class="label">Total Jobs</div><div class="value blue" id="m-total">0</div></div>
+          <div class="metric-box"><div class="label">Succeeded</div><div class="value green" id="m-succeeded">0</div></div>
+          <div class="metric-box"><div class="label">Running</div><div class="value blue" id="m-running">0</div></div>
+          <div class="metric-box"><div class="label">Failed</div><div class="value" style="color:#f85149" id="m-failed">0</div></div>
+          <div class="metric-box"><div class="label">Models in Registry</div><div class="value warn" id="m-models">0</div></div>
+          <div class="metric-box"><div class="label">In Production</div><div class="value green" id="m-prod">0</div></div>
+        </div>
+        <div style="margin-top:20px;" class="card">
+          <h3>Pipeline</h3>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;font-size:13px;">
+            <span style="background:rgba(31,111,235,0.15);color:#388bfd;padding:6px 14px;border-radius:20px;">1. Upload Dataset → MinIO</span>
+            <span style="color:var(--muted)">→</span>
+            <span style="background:rgba(137,87,229,0.15);color:var(--purple);padding:6px 14px;border-radius:20px;">2. Argo Workflow Triggered</span>
+            <span style="color:var(--muted)">→</span>
+            <span style="background:rgba(19,128,150,0.15);color:#56d0e3;padding:6px 14px;border-radius:20px;">3. KubeRay LoRA Training</span>
+            <span style="color:var(--muted)">→</span>
+            <span style="background:rgba(210,153,34,0.15);color:var(--warn);padding:6px 14px;border-radius:20px;">4. Auto Evaluation</span>
+            <span style="color:var(--muted)">→</span>
+            <span style="background:rgba(35,134,54,0.15);color:#3fb950;padding:6px 14px;border-radius:20px;">5. MLflow Registry</span>
+            <span style="color:var(--muted)">→</span>
+            <span style="background:rgba(31,111,235,0.15);color:#388bfd;padding:6px 14px;border-radius:20px;">6. ArgoCD Deploy</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
