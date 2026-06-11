@@ -9,6 +9,7 @@ from typing import Optional
 import boto3
 import mlflow
 import httpx
+import redis.asyncio as aioredis
 from botocore.client import Config
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -28,8 +29,31 @@ MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 ARGO_SERVER = os.getenv("ARGO_SERVER", "http://argo-workflows-server:2746")
 ARGO_NAMESPACE = os.getenv("ARGO_NAMESPACE", "ml-training")
 FINE_TUNER_URL = os.getenv("FINE_TUNER_URL", "http://fine-tuner:8003")  # local dev
+REDIS_URL = os.getenv("REDIS_URL", "")  # empty = no Redis (local dev without queue)
 
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+
+async def _redis_push(job_id: str):
+    if not REDIS_URL:
+        return
+    try:
+        r = await aioredis.from_url(REDIS_URL)
+        await r.rpush("training:job_queue", job_id)
+        await r.aclose()
+    except Exception as e:
+        logger.warning(f"Redis push failed for job {job_id}: {e}")
+
+
+async def _redis_remove(job_id: str):
+    if not REDIS_URL:
+        return
+    try:
+        r = await aioredis.from_url(REDIS_URL)
+        await r.lrem("training:job_queue", 1, job_id)
+        await r.aclose()
+    except Exception as e:
+        logger.warning(f"Redis remove failed for job {job_id}: {e}")
 
 # In-memory job store (use Redis/Postgres in production)
 _jobs: dict[str, dict] = {}
@@ -141,6 +165,9 @@ async def submit_job(
     }
     _jobs[job_id] = job_record
 
+    # Push to Redis queue — KEDA ScaledObject watches this list to scale Ray workers
+    asyncio.create_task(_redis_push(job_id))
+
     # Trigger pipeline (Argo Workflow in K8s, direct HTTP call in local dev)
     asyncio.create_task(_trigger_pipeline(job_id, job_config))
 
@@ -189,6 +216,9 @@ async def _call_fine_tuner_direct(job_id: str, config: dict):
             _jobs[job_id]["status"] = "succeeded"
             _jobs[job_id]["updated_at"] = datetime.utcnow().isoformat()
 
+        # Remove from Redis queue — signals KEDA the job slot is free
+        await _redis_remove(job_id)
+
     except Exception as e:
         logger.error(f"Job {job_id} failed: {e}")
         _jobs[job_id].update({
@@ -196,6 +226,7 @@ async def _call_fine_tuner_direct(job_id: str, config: dict):
             "error": str(e),
             "updated_at": datetime.utcnow().isoformat(),
         })
+        await _redis_remove(job_id)
 
 
 async def _submit_argo_workflow(job_id: str, config: dict):

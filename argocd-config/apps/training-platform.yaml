@@ -24,3 +24,11 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  ignoreDifferences:
+    - group: ray.io
+      kind: RayCluster
+      name: training-cluster
+      jsonPointers:
+        - /spec/workerGroupSpecs/0/replicas
+        - /spec/workerGroupSpecs/0/minReplicas
+        - /spec/workerGroupSpecs/0/maxReplicas

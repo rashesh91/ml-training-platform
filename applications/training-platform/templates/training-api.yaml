@@ -47,6 +47,8 @@ spec:
               value: {{ .Values.trainingApi.env.useArgo | quote }}
             - name: ARGO_NAMESPACE
               value: {{ .Values.trainingApi.env.argoNamespace | quote }}
+            - name: REDIS_URL
+              value: "redis://redis.ml-training.svc.cluster.local:6379"
           resources:
             requests:
               memory: {{ .Values.trainingApi.resources.requests.memory | quote }}
