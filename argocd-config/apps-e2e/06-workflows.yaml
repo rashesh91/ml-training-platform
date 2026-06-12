@@ -1,0 +1,24 @@
+---
+# Wave 5: WorkflowTemplates (pipeline definitions — deployed after platform is up)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ml-workflows-e2e
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://github.com/rashesh91/ml-training-platform.git
+    targetRevision: HEAD
+    path: workflows
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
