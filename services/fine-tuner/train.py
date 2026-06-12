@@ -79,15 +79,16 @@ def upload_checkpoint(local_dir: str, bucket: str, prefix: str):
 
 
 def build_dataset(records: list[dict], tokenizer, max_seq_length: int) -> Dataset:
-    """
-    Expects JSONL with {"prompt": "...", "response": "..."} or {"text": "..."}.
-    """
     texts = []
     for r in records:
         if "text" in r:
             texts.append(r["text"])
         elif "prompt" in r and "response" in r:
             texts.append(f"### Instruction:\n{r['prompt']}\n\n### Response:\n{r['response']}")
+        elif "instruction" in r and "output" in r:
+            inp = r.get("input", "")
+            body = f"\n\n### Input:\n{inp}" if inp else ""
+            texts.append(f"### Instruction:\n{r['instruction']}{body}\n\n### Response:\n{r['output']}")
         else:
             logger.warning(f"Skipping record with unknown format: {list(r.keys())}")
 
