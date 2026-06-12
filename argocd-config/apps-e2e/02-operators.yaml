@@ -1,28 +1,7 @@
 ---
-# Wave 1: KubeRay Operator
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: kuberay-operator-e2e
-  namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-spec:
-  project: ml-training
-  source:
-    repoURL: https://ray-project.github.io/kuberay-helm-chart
-    chart: kuberay-operator
-    targetRevision: 1.1.1
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: ml-training
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
+# KubeRay operator installed directly via:
+# kubectl create -k github.com/ray-project/kuberay/ray-operator/config/default?ref=v1.1.1
+# (Helm repo unavailable; operator runs in ray-system namespace)
 ---
 # Wave 1: Argo Workflows
 apiVersion: argoproj.io/v1alpha1
