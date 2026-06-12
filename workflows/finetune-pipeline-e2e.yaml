@@ -177,6 +177,21 @@ spec:
                 key: secret_key
           - name: MLFLOW_TRACKING_URI
             value: "http://mlflow.ml-training.svc.cluster.local:5000"
+          - name: MLFLOW_S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: endpoint
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: access_key
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: secret_key
         resources:
           requests:
             memory: 4Gi
@@ -243,6 +258,21 @@ spec:
                 key: secret_key
           - name: MLFLOW_TRACKING_URI
             value: "http://mlflow.ml-training.svc.cluster.local:5000"
+          - name: MLFLOW_S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: endpoint
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: access_key
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: secret_key
           - name: ROUGE_THRESHOLD
             value: "0.05"
         resources:
