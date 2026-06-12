@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: finetune-pipeline
+  name: finetune-pipeline-ray
   namespace: ml-training
   labels:
     app: ml-training-platform
@@ -56,9 +56,20 @@ spec:
                 - name: mlflow_run_id
                   value: "{{tasks.train.outputs.parameters.mlflow_run_id}}"
 
+          - name: deploy-to-inference
+            template: trigger-inference-deploy
+            dependencies: [promote]
+            when: "{{tasks.evaluate.outputs.parameters.eval_passed}} == true"
+            arguments:
+              parameters:
+                - name: config
+                  value: "{{workflow.parameters.config}}"
+                - name: mlflow_run_id
+                  value: "{{tasks.train.outputs.parameters.mlflow_run_id}}"
+
           - name: notify-complete
             template: update-job-status
-            dependencies: [promote]
+            dependencies: [deploy-to-inference]
             arguments:
               parameters:
                 - name: config
@@ -306,7 +317,41 @@ spec:
             memory: 256Mi
             cpu: 100m
 
-    # ─── Step 5: Notify training-api ────────────────────────────────────────────
+    # ─── Step 5: Deploy to ml-inference-gitops ──────────────────────────────────
+    - name: trigger-inference-deploy
+      inputs:
+        parameters:
+          - name: config
+          - name: mlflow_run_id
+      script:
+        image: python:3.11-slim
+        command: [sh, -c]
+        source: |
+          pip install -q httpx && python - <<'EOF'
+          import json, httpx, os
+          config = json.loads('''{{inputs.parameters.config}}''')
+          model_name = config['model_name']
+          run_id = '{{inputs.parameters.mlflow_run_id}}'
+          api_url = os.environ.get('TRAINING_API_URL', 'http://training-api.ml-training.svc.cluster.local:8004')
+          try:
+              r = httpx.post(
+                  f'{api_url}/api/internal/deploy-to-inference',
+                  json={'model_name': model_name, 'version': 'latest', 'run_id': run_id},
+                  timeout=60,
+              )
+              print(f"Deploy response {r.status_code}: {r.text}")
+          except Exception as e:
+              print(f"Warning: inference deploy notification failed: {e}")
+          EOF
+        env:
+          - name: TRAINING_API_URL
+            value: "http://training-api.ml-training.svc.cluster.local:8004"
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 50m
+
+    # ─── Step 6: Notify training-api ────────────────────────────────────────────
     - name: update-job-status
       inputs:
         parameters:
