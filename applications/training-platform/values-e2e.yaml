@@ -10,14 +10,4 @@ trainingApi:
     host: training.aitest.lintel.in
 
 rayCluster:
-  gpu:
-    enabled: false     # GPU reserved for voice-platform Ollama
-  replicas:
-    workers: 1
-  resources:
-    head:
-      requests: { memory: "2Gi", cpu: "1" }
-      limits:   { memory: "4Gi", cpu: "2" }
-    worker:
-      requests: { memory: "4Gi", cpu: "2" }
-      limits:   { memory: "8Gi", cpu: "4" }
+  enabled: false  # Not needed for e2e; Argo Workflows handles training jobs
