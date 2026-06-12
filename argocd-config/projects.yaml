@@ -32,5 +32,3 @@ spec:
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"
-  syncPolicy:
-    automated: {}
