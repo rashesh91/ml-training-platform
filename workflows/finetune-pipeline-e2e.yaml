@@ -128,8 +128,9 @@ spec:
             memory: 256Mi
             cpu: 100m
 
-    # ─── Step 2: Fine-tuner (GPU if available, CPU fallback) ───────────────────
+    # ─── Step 2: Fine-tuner (GPU via runtimeClassName: nvidia) ─────────────────
     - name: run-fine-tuner
+      podSpecPatch: '{"runtimeClassName": "nvidia"}'
       inputs:
         parameters:
           - name: config
@@ -204,6 +205,7 @@ spec:
 
     # ─── Step 3: Evaluate ────────────────────────────────────────────────────────
     - name: run-evaluation
+      podSpecPatch: '{"runtimeClassName": "nvidia"}'
       inputs:
         parameters:
           - name: config
