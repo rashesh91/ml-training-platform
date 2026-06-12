@@ -223,9 +223,12 @@ spec:
             mkdir -p /configs && \
             python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
             python3 -c "
-            import json, sys, os
-            sys.path.insert(0, '/app')
-            from evaluate import evaluate
+            import json, sys, os, importlib.util
+            spec = importlib.util.spec_from_file_location('evaluator_impl', '/app/evaluate.py')
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules['evaluator_impl'] = mod
+            spec.loader.exec_module(mod)
+            evaluate = mod.evaluate
             config = json.load(open('/configs/job.json'))
             config['mlflow_run_id'] = os.environ.get('MLFLOW_RUN_ID', '')
             config.setdefault('checkpoint_prefix', config['job_id'] + '/checkpoint')
