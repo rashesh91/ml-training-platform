@@ -141,7 +141,21 @@ spec:
       container:
         image: docker.io/library/fine-tuner:latest
         imagePullPolicy: Never
-        command: [python, train.py]
+        command: [sh, -c]
+        args:
+          - |
+            mkdir -p /configs && \
+            python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
+            python3 -c "
+            import json, sys
+            sys.path.insert(0, '/app')
+            from train import train
+            config = json.load(open('/configs/job.json'))
+            result = train(config)
+            with open('/tmp/mlflow_run_id.txt', 'w') as f:
+                f.write(result['mlflow_run_id'])
+            print('mlflow_run_id:', result['mlflow_run_id'])
+            "
         env:
           - name: JOB_CONFIG
             value: "{{inputs.parameters.config}}"
@@ -187,7 +201,25 @@ spec:
       container:
         image: docker.io/library/evaluator:latest
         imagePullPolicy: Never
-        command: [python, evaluate.py]
+        command: [sh, -c]
+        args:
+          - |
+            mkdir -p /configs && \
+            python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
+            python3 -c "
+            import json, sys, os
+            sys.path.insert(0, '/app')
+            from evaluate import evaluate
+            config = json.load(open('/configs/job.json'))
+            config['mlflow_run_id'] = os.environ.get('MLFLOW_RUN_ID', '')
+            config.setdefault('checkpoint_prefix', config['job_id'] + '/checkpoint')
+            result = evaluate(config)
+            with open('/tmp/eval_passed.txt', 'w') as f:
+                f.write('true' if result.get('passed') else 'false')
+            with open('/tmp/rouge_l.txt', 'w') as f:
+                f.write(str(result.get('rouge_l', 0)))
+            print(json.dumps(result))
+            "
         env:
           - name: JOB_CONFIG
             value: "{{inputs.parameters.config}}"
