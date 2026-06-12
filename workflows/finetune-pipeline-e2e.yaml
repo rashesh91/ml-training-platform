@@ -382,7 +382,7 @@ spec:
             mkdir -p /configs && \
             python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
             python3 << 'PYEOF'
-            import json, os, sys, boto3, shutil, datetime
+            import json, os, sys, boto3, re, datetime
             from botocore.client import Config
 
             config = json.load(open('/configs/job.json'))
@@ -405,11 +405,15 @@ spec:
             if not objects:
                 print(f"No checkpoint at checkpoints/{prefix}, skipping publish"); sys.exit(0)
 
+            # Find checkpoint subdirectories (e.g. job_id/checkpoint/checkpoint-339/)
+            import re
             dirs = set()
             for obj in objects:
-                parts = obj['Key'].split('/')
-                if len(parts) >= 3:
-                    dirs.add('/'.join(parts[:3]))
+                m = re.search(r'(.+/checkpoint-\d+)/', obj['Key'])
+                if m:
+                    dirs.add(m.group(1))
+            if not dirs:
+                print("No checkpoint-N subdirectory found, skipping publish"); sys.exit(0)
             last_dir = sorted(dirs)[-1]
             print(f"Using checkpoint: {last_dir}")
 
@@ -433,7 +437,7 @@ spec:
             print(f"Loading base model: {base_model_id}")
             tokenizer = AutoTokenizer.from_pretrained('/tmp/ckpt', trust_remote_code=True)
             base = AutoModelForCausalLM.from_pretrained(
-                base_model_id, torch_dtype=torch.float16, device_map='cpu', trust_remote_code=True)
+                base_model_id, torch_dtype=torch.bfloat16, device_map='cpu', trust_remote_code=True)
             print("Applying PEFT adapter...")
             model = PeftModel.from_pretrained(base, '/tmp/ckpt')
             merged = model.merge_and_unload()
@@ -445,6 +449,10 @@ spec:
 
             # Upload merged model to MinIO models bucket
             minio_prefix = f"{model_name}/merged"
+            try:
+                s3.head_bucket(Bucket='models')
+            except Exception:
+                s3.create_bucket(Bucket='models')
             for root, _, files in os.walk('/tmp/merged'):
                 for fname in files:
                     fpath = os.path.join(root, fname)
