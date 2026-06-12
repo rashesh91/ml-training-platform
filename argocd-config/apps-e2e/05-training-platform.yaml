@@ -1,0 +1,37 @@
+---
+# Wave 4: Training Platform (custom images, no GPU)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: training-platform-e2e
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://github.com/rashesh91/ml-training-platform.git
+    targetRevision: HEAD
+    path: applications/training-platform
+    helm:
+      releaseName: training-e2e
+      valueFiles:
+        - values.yaml
+        - values-e2e.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: ray.io
+      kind: RayCluster
+      name: training-cluster
+      jsonPointers:
+        - /spec/workerGroupSpecs/0/replicas
+        - /spec/workerGroupSpecs/0/minReplicas
+        - /spec/workerGroupSpecs/0/maxReplicas

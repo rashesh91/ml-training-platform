@@ -1,0 +1,44 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ml-training-namespaces-e2e
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://github.com/rashesh91/ml-training-platform.git
+    targetRevision: HEAD
+    path: infrastructure/namespaces
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ml-training-rbac-e2e
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://github.com/rashesh91/ml-training-platform.git
+    targetRevision: HEAD
+    path: infrastructure/rbac
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,59 @@
+---
+# Wave 1: KubeRay Operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kuberay-operator-e2e
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://kuberay.github.io/kuberay-helm-chart
+    chart: kuberay-operator
+    targetRevision: 1.1.1
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# Wave 1: Argo Workflows
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-workflows-e2e
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: ml-training
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-workflows
+    targetRevision: 0.42.5
+    helm:
+      values: |
+        workflow:
+          serviceAccount:
+            create: true
+            name: ml-training-sa
+        controller:
+          workflowNamespaces:
+            - ml-training
+        server:
+          authModes:
+            - server
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-training
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
