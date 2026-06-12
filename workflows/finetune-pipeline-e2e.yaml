@@ -203,14 +203,26 @@ spec:
               secretKeyRef:
                 name: minio-credentials
                 key: secret_key
+          - name: HUGGING_FACE_HUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: hf-token
+                key: token
+                optional: true
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: hf-token
+                key: token
+                optional: true
         resources:
           requests:
-            memory: 8Gi
-            cpu: "2"
+            memory: 16Gi
+            cpu: "4"
             nvidia.com/gpu: "1"
           limits:
-            memory: 20Gi
-            cpu: "4"
+            memory: 22Gi
+            cpu: "8"
             nvidia.com/gpu: "1"
 
     # ─── Step 3: Evaluate ────────────────────────────────────────────────────────

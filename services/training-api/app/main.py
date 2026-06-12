@@ -16,6 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from deploy_to_inference import trigger_inference_deploy
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,7 @@ class ModelEntry(BaseModel):
 
 class DeployRequest(BaseModel):
     version: str
+    run_id: str = ""
 
 
 # --- Routes ---
@@ -124,6 +127,8 @@ async def submit_job(
     epochs: int = Form(3),
     learning_rate: float = Form(2e-4),
     max_seq_length: int = Form(512),
+    batch_size: int = Form(2),
+    grad_accum: int = Form(4),
 ):
     job_id = str(uuid.uuid4())[:8]
     now = datetime.utcnow().isoformat()
@@ -144,6 +149,8 @@ async def submit_job(
         "epochs": epochs,
         "learning_rate": learning_rate,
         "max_seq_length": max_seq_length,
+        "batch_size": batch_size,
+        "grad_accum": grad_accum,
         "dataset_bucket": "datasets",
         "dataset_key": dataset_key,
         "checkpoint_bucket": "checkpoints",
@@ -310,8 +317,40 @@ async def deploy_model(model_name: str, req: DeployRequest):
             version=req.version,
             stage="Production",
         )
-        return {"status": "promoted", "model": model_name, "version": req.version, "stage": "Production"}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Kick off inference deploy in the background so the HTTP response returns
+    # immediately; any failure is logged but does not affect the promote result.
+    run_id = req.run_id or ""
+    asyncio.create_task(
+        _deploy_to_inference_safe(model_name, req.version, run_id)
+    )
+    return {"status": "promoted", "model": model_name, "version": req.version, "stage": "Production"}
+
+
+async def _deploy_to_inference_safe(model_name: str, version: str, run_id: str):
+    try:
+        result = await trigger_inference_deploy(model_name, version, run_id)
+        logger.info("Inference deploy result: %s", result)
+    except Exception as e:
+        logger.error("Inference deploy failed for %s v%s: %s", model_name, version, e)
+
+
+class InternalDeployRequest(BaseModel):
+    model_name: str
+    version: str
+    run_id: str = ""
+
+
+@app.post("/api/internal/deploy-to-inference")
+async def internal_deploy_to_inference(req: InternalDeployRequest):
+    """Called by the Argo Workflow deploy-to-inference step after auto-promote."""
+    try:
+        result = await trigger_inference_deploy(req.model_name, req.version, req.run_id)
+        return result
+    except Exception as e:
+        logger.error("Internal inference deploy failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

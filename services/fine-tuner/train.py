@@ -115,6 +115,8 @@ def train(config: dict) -> dict:
     epochs = config.get("epochs", 3)
     learning_rate = config.get("learning_rate", 2e-4)
     max_seq_length = config.get("max_seq_length", 512)
+    batch_size = config.get("batch_size", 2)
+    grad_accum = config.get("grad_accum", 4)
     dataset_bucket = config.get("dataset_bucket", "datasets")
     dataset_key = config.get("dataset_key", f"{job_id}/dataset.jsonl")
     checkpoint_bucket = config.get("checkpoint_bucket", "checkpoints")
@@ -159,9 +161,9 @@ def train(config: dict) -> dict:
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=epochs,
-            per_device_train_batch_size=2,
-            per_device_eval_batch_size=2,
-            gradient_accumulation_steps=4,
+            per_device_train_batch_size=batch_size,
+            per_device_eval_batch_size=batch_size,
+            gradient_accumulation_steps=grad_accum,
             learning_rate=learning_rate,
             fp16=(device == "cuda"),
             logging_steps=10,
@@ -183,6 +185,8 @@ def train(config: dict) -> dict:
                 "epochs": epochs,
                 "learning_rate": learning_rate,
                 "max_seq_length": max_seq_length,
+                "batch_size": batch_size,
+                "grad_accum": grad_accum,
                 "trainable_params": trainable_params,
                 "total_params": total_params,
                 "dataset_size": len(records),
