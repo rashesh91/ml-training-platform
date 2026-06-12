@@ -54,6 +54,16 @@ spec:
                 - name: mlflow_run_id
                   value: "{{tasks.train.outputs.parameters.mlflow_run_id}}"
 
+          - name: publish
+            template: merge-and-publish
+            dependencies: [promote]
+            arguments:
+              parameters:
+                - name: config
+                  value: "{{workflow.parameters.config}}"
+                - name: mlflow_run_id
+                  value: "{{tasks.train.outputs.parameters.mlflow_run_id}}"
+
     # ─── Step 1: Preprocess ─────────────────────────────────────────────────────
     - name: preprocess-dataset
       inputs:
@@ -338,3 +348,144 @@ spec:
           requests:
             memory: 256Mi
             cpu: 100m
+
+    # ─── Step 5: Merge PEFT + Publish to vLLM ──────────────────────────────────
+    - name: merge-and-publish
+      inputs:
+        parameters:
+          - name: config
+          - name: mlflow_run_id
+      container:
+        image: docker.io/library/fine-tuner:latest
+        imagePullPolicy: Never
+        command: [sh, -c]
+        args:
+          - |
+            pip install -q kubernetes && \
+            mkdir -p /configs && \
+            python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
+            python3 << 'PYEOF'
+            import json, os, sys, boto3, shutil, datetime
+            from botocore.client import Config
+
+            config = json.load(open('/configs/job.json'))
+            job_id = config['job_id']
+            model_name = config['model_name']
+            base_model_id = config['base_model']
+            mlflow_run_id = os.environ['MLFLOW_RUN_ID']
+            minio_endpoint = os.environ['MINIO_ENDPOINT']
+            access_key = os.environ['AWS_ACCESS_KEY_ID']
+            secret_key = os.environ['AWS_SECRET_ACCESS_KEY']
+
+            s3 = boto3.client('s3', endpoint_url=minio_endpoint,
+                aws_access_key_id=access_key, aws_secret_access_key=secret_key,
+                config=Config(signature_version='s3v4'), region_name='us-east-1')
+
+            # Find latest checkpoint in MinIO
+            prefix = f"{job_id}/checkpoint"
+            resp = s3.list_objects_v2(Bucket='checkpoints', Prefix=prefix)
+            objects = resp.get('Contents', [])
+            if not objects:
+                print(f"No checkpoint at checkpoints/{prefix}, skipping publish"); sys.exit(0)
+
+            dirs = set()
+            for obj in objects:
+                parts = obj['Key'].split('/')
+                if len(parts) >= 3:
+                    dirs.add('/'.join(parts[:3]))
+            last_dir = sorted(dirs)[-1]
+            print(f"Using checkpoint: {last_dir}")
+
+            # Download checkpoint
+            os.makedirs('/tmp/ckpt', exist_ok=True)
+            for obj in objects:
+                if obj['Key'].startswith(last_dir + '/'):
+                    fname = obj['Key'][len(last_dir)+1:]
+                    if fname:
+                        fdir = os.path.dirname(f'/tmp/ckpt/{fname}')
+                        if fdir:
+                            os.makedirs(fdir, exist_ok=True)
+                        s3.download_file('checkpoints', obj['Key'], f'/tmp/ckpt/{fname}')
+            print("Checkpoint downloaded to /tmp/ckpt")
+
+            # Merge PEFT adapter into base model
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            from peft import PeftModel
+
+            print(f"Loading base model: {base_model_id}")
+            tokenizer = AutoTokenizer.from_pretrained('/tmp/ckpt', trust_remote_code=True)
+            base = AutoModelForCausalLM.from_pretrained(
+                base_model_id, torch_dtype=torch.float16, device_map='cpu', trust_remote_code=True)
+            print("Applying PEFT adapter...")
+            model = PeftModel.from_pretrained(base, '/tmp/ckpt')
+            merged = model.merge_and_unload()
+
+            os.makedirs('/tmp/merged', exist_ok=True)
+            merged.save_pretrained('/tmp/merged', safe_serialization=True)
+            tokenizer.save_pretrained('/tmp/merged')
+            print("Merged model saved to /tmp/merged")
+
+            # Upload merged model to MinIO models bucket
+            minio_prefix = f"{model_name}/merged"
+            for root, _, files in os.walk('/tmp/merged'):
+                for fname in files:
+                    fpath = os.path.join(root, fname)
+                    s3_key = f"{minio_prefix}/{os.path.relpath(fpath, '/tmp/merged')}"
+                    s3.upload_file(fpath, 'models', s3_key)
+                    print(f"Uploaded: models/{s3_key}")
+            print(f"Merged model at s3://models/{minio_prefix}/")
+
+            # Update vllm-model-config ConfigMap in voice-platform
+            from kubernetes import client as k8s_client, config as k8s_config
+            k8s_config.load_incluster_config()
+            v1 = k8s_client.CoreV1Api()
+            v1.patch_namespaced_config_map('vllm-model-config', 'voice-platform', {'data': {
+                'model_source': 'minio',
+                'minio_bucket': 'models',
+                'minio_path': minio_prefix,
+                'model_name': 'assistant',
+                'huggingface_id': base_model_id,
+                'job_id': job_id,
+                'mlflow_run_id': mlflow_run_id,
+            }})
+            print("ConfigMap vllm-model-config updated.")
+
+            # Restart vLLM StatefulSet to load the new model
+            apps_v1 = k8s_client.AppsV1Api()
+            patch = {'spec': {'template': {'metadata': {'annotations': {
+                'training.ml/restartedAt': datetime.datetime.utcnow().isoformat(),
+                'training.ml/mlflow_run_id': mlflow_run_id,
+            }}}}}
+            apps_v1.patch_namespaced_stateful_set('llm-agent', 'voice-platform', patch)
+            print("vLLM StatefulSet llm-agent restarted — will load fine-tuned model on next pod start.")
+            PYEOF
+        env:
+          - name: JOB_CONFIG
+            value: "{{inputs.parameters.config}}"
+          - name: MLFLOW_RUN_ID
+            value: "{{inputs.parameters.mlflow_run_id}}"
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: endpoint
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: access_key
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: secret_key
+          - name: MLFLOW_TRACKING_URI
+            value: "http://mlflow.ml-training.svc.cluster.local:5000"
+        resources:
+          requests:
+            memory: 16Gi
+            cpu: "4"
+          limits:
+            memory: 24Gi
+            cpu: "8"
