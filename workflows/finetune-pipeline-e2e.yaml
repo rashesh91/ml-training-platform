@@ -158,7 +158,10 @@ spec:
             mkdir -p /configs && \
             python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
             sed -i 's/eval_strategy=/evaluation_strategy=/g' /app/train.py && \
-            sed -i 's/fp16=(device == "cuda"),/bf16=True, fp16=False,/' /app/train.py && \
+            sed -i 's/torch_dtype=torch.float16 if device == "cuda" else torch.float32/torch_dtype=torch.bfloat16 if device == "cuda" else torch.float32/g' /app/train.py && \
+            sed -i 's/fp16=(device == "cuda"),/bf16=True, fp16=False,/g' /app/train.py && \
+            sed -i 's/bf16=bf16_supported,/bf16=True,/g' /app/train.py && \
+            sed -i 's/fp16=(device == "cuda" and not bf16_supported),/fp16=False,/g' /app/train.py && \
             python3 -c "
             import json, sys
             sys.path.insert(0, '/app')

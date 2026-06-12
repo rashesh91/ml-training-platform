@@ -1,0 +1,17 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ml-training-high
+value: 1000
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false
+description: "GPU training jobs — preempts inference pods to claim GPU"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ml-inference-low
+value: 100
+preemptionPolicy: Never
+globalDefault: false
+description: "Inference pods — yield GPU to training jobs automatically"
