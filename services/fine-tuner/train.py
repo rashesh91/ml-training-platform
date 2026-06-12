@@ -158,6 +158,7 @@ def train(config: dict) -> dict:
     dataset = build_dataset(records, tokenizer, max_seq_length)
 
     with tempfile.TemporaryDirectory() as output_dir:
+        bf16_supported = device == "cuda" and torch.cuda.is_bf16_supported()
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=epochs,
@@ -165,7 +166,8 @@ def train(config: dict) -> dict:
             per_device_eval_batch_size=batch_size,
             gradient_accumulation_steps=grad_accum,
             learning_rate=learning_rate,
-            fp16=(device == "cuda"),
+            bf16=bf16_supported,
+            fp16=(device == "cuda" and not bf16_supported),
             logging_steps=10,
             eval_strategy="epoch",
             save_strategy="epoch",
