@@ -49,6 +49,31 @@ spec:
               value: {{ .Values.trainingApi.env.argoNamespace | quote }}
             - name: REDIS_URL
               value: "redis://redis.ml-training.svc.cluster.local:6379"
+            # ── Inference GitOps integration ──────────────────────────────────
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: inference-deploy-credentials
+                  key: github_token
+                  optional: true
+            - name: ARGOCD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: inference-deploy-credentials
+                  key: argocd_token
+                  optional: true
+            - name: INFERENCE_GITOPS_REPO
+              value: {{ .Values.trainingApi.env.inferenceGitopsRepo | quote }}
+            - name: INFERENCE_GITOPS_BRANCH
+              value: {{ .Values.trainingApi.env.inferenceGitopsBranch | quote }}
+            - name: INFERENCE_GITOPS_VALUES_PATH
+              value: {{ .Values.trainingApi.env.inferenceGitopsValuesPath | quote }}
+            - name: ARGOCD_SERVER
+              value: {{ .Values.trainingApi.env.argocdServer | quote }}
+            - name: ARGOCD_APP_NAME
+              value: {{ .Values.trainingApi.env.argocdAppName | quote }}
+            - name: ARGOCD_INSECURE
+              value: {{ .Values.trainingApi.env.argocdInsecure | quote }}
           resources:
             requests:
               memory: {{ .Values.trainingApi.resources.requests.memory | quote }}
@@ -92,7 +117,15 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{ .Values.trainingApi.ingress.host }}
+      secretName: training-api-tls
   rules:
     - host: {{ .Values.trainingApi.ingress.host | quote }}
       http:

@@ -107,8 +107,14 @@ metadata:
   name: mlflow
   namespace: ml-training
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
 spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mlflow.aitest.lintel.in
+      secretName: mlflow-tls
   rules:
     - host: mlflow.aitest.lintel.in
       http:
