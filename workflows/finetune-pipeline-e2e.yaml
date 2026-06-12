@@ -128,7 +128,7 @@ spec:
             memory: 256Mi
             cpu: 100m
 
-    # ─── Step 2: Fine-tuner (CPU, single node) ──────────────────────────────────
+    # ─── Step 2: Fine-tuner (GPU if available, CPU fallback) ───────────────────
     - name: run-fine-tuner
       inputs:
         parameters:
@@ -194,11 +194,13 @@ spec:
                 key: secret_key
         resources:
           requests:
-            memory: 4Gi
-            cpu: "4"
+            memory: 8Gi
+            cpu: "2"
+            nvidia.com/gpu: "1"
           limits:
-            memory: 16Gi
-            cpu: "8"
+            memory: 20Gi
+            cpu: "4"
+            nvidia.com/gpu: "1"
 
     # ─── Step 3: Evaluate ────────────────────────────────────────────────────────
     - name: run-evaluation
@@ -224,6 +226,15 @@ spec:
             python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
             cd /tmp && python3 -c "
             import json, sys, os, importlib.util
+            import numpy as np
+            _orig = json.JSONEncoder.default
+            def _np_default(self, obj):
+                if isinstance(obj, np.bool_): return bool(obj)
+                if isinstance(obj, np.integer): return int(obj)
+                if isinstance(obj, (np.floating, np.float32, np.float64)): return float(obj)
+                if isinstance(obj, np.ndarray): return obj.tolist()
+                return _orig(self, obj)
+            json.JSONEncoder.default = _np_default
             sys.path = [p for p in sys.path if p not in ('', '/app')]
             spec = importlib.util.spec_from_file_location('evaluator_impl', '/app/evaluate.py')
             mod = importlib.util.module_from_spec(spec)
@@ -235,10 +246,10 @@ spec:
             config.setdefault('checkpoint_prefix', config['job_id'] + '/checkpoint')
             result = evaluate_fn(config)
             with open('/tmp/eval_passed.txt', 'w') as f:
-                f.write('true' if result.get('passed') else 'false')
+                f.write('true' if bool(result.get('passed', False)) else 'false')
             with open('/tmp/rouge_l.txt', 'w') as f:
-                f.write(str(result.get('rouge_l', 0)))
-            print(json.dumps(result))
+                f.write(str(float(result.get('rouge_l', 0))))
+            print('eval_passed:', result.get('passed'), 'rouge_l:', result.get('rouge_l'))
             "
         env:
           - name: JOB_CONFIG
@@ -281,11 +292,13 @@ spec:
             value: "0.05"
         resources:
           requests:
-            memory: 4Gi
-            cpu: "2"
-          limits:
             memory: 8Gi
+            cpu: "2"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: 20Gi
             cpu: "4"
+            nvidia.com/gpu: "1"
 
     # ─── Step 4: Promote ────────────────────────────────────────────────────────
     - name: promote-model
