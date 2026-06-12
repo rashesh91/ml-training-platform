@@ -225,8 +225,8 @@ def train(config: dict) -> dict:
             checkpoint_prefix = f"{job_id}/checkpoint"
             upload_checkpoint(output_dir, checkpoint_bucket, checkpoint_prefix)
 
-            # Log model artifact to MLflow
-            mlflow.pytorch.log_model(model, "model")
+            # Log model artifact to MLflow (save_model already ran above)
+            mlflow.log_artifacts(output_dir, artifact_path="model")
 
             # Register in MLflow model registry
             model_uri = f"runs:/{run.info.run_id}/model"

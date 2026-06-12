@@ -162,6 +162,7 @@ spec:
             sed -i 's/fp16=(device == "cuda"),/bf16=True, fp16=False,/g' /app/train.py && \
             sed -i 's/bf16=bf16_supported,/bf16=True,/g' /app/train.py && \
             sed -i 's/fp16=(device == "cuda" and not bf16_supported),/fp16=False,/g' /app/train.py && \
+            sed -i 's/mlflow\.pytorch\.log_model(model, "model")/mlflow.log_artifacts(output_dir, artifact_path="model")/g' /app/train.py && \
             python3 -c "
             import json, sys
             sys.path.insert(0, '/app')
