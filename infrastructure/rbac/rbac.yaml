@@ -79,3 +79,16 @@ spec:
   ports:
     - port: 9000
       targetPort: 9000
+---
+# argo-workflows-server alias — Helm deploys as "argo-workflows-e2e-server"
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-workflows-server
+  namespace: ml-training
+spec:
+  type: ExternalName
+  externalName: argo-workflows-e2e-server.ml-training.svc.cluster.local
+  ports:
+    - port: 2746
+      targetPort: 2746

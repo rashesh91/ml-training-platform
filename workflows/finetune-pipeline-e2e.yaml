@@ -1,0 +1,258 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: finetune-pipeline
+  namespace: ml-training
+  labels:
+    app: ml-training-platform
+spec:
+  entrypoint: finetune-pipeline
+  serviceAccountName: ml-training-sa
+  arguments:
+    parameters:
+      - name: config
+        value: "{}"
+
+  templates:
+    # ─── Main DAG ───────────────────────────────────────────────────────────────
+    - name: finetune-pipeline
+      dag:
+        tasks:
+          - name: preprocess
+            template: preprocess-dataset
+            arguments:
+              parameters:
+                - name: config
+                  value: "{{workflow.parameters.config}}"
+
+          - name: train
+            template: run-fine-tuner
+            dependencies: [preprocess]
+            arguments:
+              parameters:
+                - name: config
+                  value: "{{workflow.parameters.config}}"
+
+          - name: evaluate
+            template: run-evaluation
+            dependencies: [train]
+            arguments:
+              parameters:
+                - name: config
+                  value: "{{workflow.parameters.config}}"
+                - name: mlflow_run_id
+                  value: "{{tasks.train.outputs.parameters.mlflow_run_id}}"
+
+          - name: promote
+            template: promote-model
+            dependencies: [evaluate]
+            when: "{{tasks.evaluate.outputs.parameters.eval_passed}} == true"
+            arguments:
+              parameters:
+                - name: config
+                  value: "{{workflow.parameters.config}}"
+                - name: mlflow_run_id
+                  value: "{{tasks.train.outputs.parameters.mlflow_run_id}}"
+
+    # ─── Step 1: Preprocess ─────────────────────────────────────────────────────
+    - name: preprocess-dataset
+      inputs:
+        parameters:
+          - name: config
+      outputs:
+        parameters:
+          - name: dataset_valid
+            valueFrom:
+              path: /tmp/dataset_valid.txt
+      script:
+        image: python:3.11-slim
+        imagePullPolicy: IfNotPresent
+        command: [sh, -c]
+        source: |
+          pip install boto3 -q && python3 - <<'EOF'
+          import json, os, sys, boto3
+          from botocore.client import Config
+
+          config = json.loads(os.environ['JOB_CONFIG'])
+          job_id = config['job_id']
+          bucket = config.get('dataset_bucket', 'datasets')
+          key = config.get('dataset_key', f'{job_id}/dataset.jsonl')
+
+          s3 = boto3.client('s3',
+              endpoint_url=os.environ['MINIO_ENDPOINT'],
+              aws_access_key_id=os.environ['MINIO_ACCESS_KEY'],
+              aws_secret_access_key=os.environ['MINIO_SECRET_KEY'],
+              config=Config(signature_version='s3v4'),
+              region_name='us-east-1')
+
+          obj = s3.get_object(Bucket=bucket, Key=key)
+          content = obj['Body'].read().decode('utf-8').strip()
+          # Support both JSON array and JSONL
+          if content.startswith('['):
+              records = json.loads(content)
+          else:
+              records = [json.loads(l) for l in content.split('\n') if l.strip()]
+
+          valid = all(
+              ('prompt' in r and 'response' in r) or
+              ('instruction' in r and 'response' in r) or
+              'text' in r
+              for r in records
+          )
+          print(f"Dataset: {len(records)} records, valid={valid}")
+          with open('/tmp/dataset_valid.txt', 'w') as f:
+              f.write('true' if valid else 'false')
+          if not valid:
+              sys.exit(1)
+          EOF
+        env:
+          - name: JOB_CONFIG
+            value: "{{inputs.parameters.config}}"
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: endpoint
+          - name: MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: access_key
+          - name: MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: secret_key
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+
+    # ─── Step 2: Fine-tuner (CPU, single node) ──────────────────────────────────
+    - name: run-fine-tuner
+      inputs:
+        parameters:
+          - name: config
+      outputs:
+        parameters:
+          - name: mlflow_run_id
+            valueFrom:
+              path: /tmp/mlflow_run_id.txt
+      container:
+        image: docker.io/library/fine-tuner:latest
+        imagePullPolicy: Never
+        command: [python, train.py]
+        env:
+          - name: JOB_CONFIG
+            value: "{{inputs.parameters.config}}"
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: endpoint
+          - name: MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: access_key
+          - name: MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: secret_key
+          - name: MLFLOW_TRACKING_URI
+            value: "http://mlflow.ml-training.svc.cluster.local:5000"
+        resources:
+          requests:
+            memory: 4Gi
+            cpu: "4"
+          limits:
+            memory: 16Gi
+            cpu: "8"
+
+    # ─── Step 3: Evaluate ────────────────────────────────────────────────────────
+    - name: run-evaluation
+      inputs:
+        parameters:
+          - name: config
+          - name: mlflow_run_id
+      outputs:
+        parameters:
+          - name: eval_passed
+            valueFrom:
+              path: /tmp/eval_passed.txt
+          - name: rouge_l
+            valueFrom:
+              path: /tmp/rouge_l.txt
+      container:
+        image: docker.io/library/evaluator:latest
+        imagePullPolicy: Never
+        command: [python, evaluate.py]
+        env:
+          - name: JOB_CONFIG
+            value: "{{inputs.parameters.config}}"
+          - name: MLFLOW_RUN_ID
+            value: "{{inputs.parameters.mlflow_run_id}}"
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: endpoint
+          - name: MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: access_key
+          - name: MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-credentials
+                key: secret_key
+          - name: MLFLOW_TRACKING_URI
+            value: "http://mlflow.ml-training.svc.cluster.local:5000"
+          - name: ROUGE_THRESHOLD
+            value: "0.05"
+        resources:
+          requests:
+            memory: 4Gi
+            cpu: "2"
+          limits:
+            memory: 8Gi
+            cpu: "4"
+
+    # ─── Step 4: Promote ────────────────────────────────────────────────────────
+    - name: promote-model
+      inputs:
+        parameters:
+          - name: config
+          - name: mlflow_run_id
+      script:
+        image: python:3.11-slim
+        imagePullPolicy: IfNotPresent
+        command: [sh, -c]
+        source: |
+          pip install mlflow psycopg2-binary -q && python3 - <<'EOF'
+          import json, os, mlflow
+          config = json.loads(os.environ['JOB_CONFIG'])
+          mlflow.set_tracking_uri(os.environ.get('MLFLOW_TRACKING_URI', 'http://mlflow:5000'))
+          client = mlflow.tracking.MlflowClient()
+          model_name = config['model_name']
+          run_id = os.environ['MLFLOW_RUN_ID']
+          for mv in client.search_model_versions(f"name='{model_name}'"):
+              if mv.run_id == run_id:
+                  client.transition_model_version_stage(
+                      name=model_name, version=mv.version, stage='Production')
+                  print(f"Promoted {model_name} v{mv.version} -> Production")
+                  break
+          EOF
+        env:
+          - name: JOB_CONFIG
+            value: "{{inputs.parameters.config}}"
+          - name: MLFLOW_RUN_ID
+            value: "{{inputs.parameters.mlflow_run_id}}"
+          - name: MLFLOW_TRACKING_URI
+            value: "http://mlflow.ml-training.svc.cluster.local:5000"
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
