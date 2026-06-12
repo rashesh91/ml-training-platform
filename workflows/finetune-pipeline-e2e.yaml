@@ -146,6 +146,7 @@ spec:
           - |
             mkdir -p /configs && \
             python3 -c "import os,json; json.dump(json.loads(os.environ['JOB_CONFIG']), open('/configs/job.json','w'))" && \
+            sed -i 's/eval_strategy=/evaluation_strategy=/g' /app/train.py && \
             python3 -c "
             import json, sys
             sys.path.insert(0, '/app')
