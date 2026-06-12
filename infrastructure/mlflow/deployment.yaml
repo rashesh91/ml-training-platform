@@ -28,13 +28,16 @@ spec:
             - containerPort: 5000
               name: http
           command:
-            - mlflow
-            - server
-            - --host=0.0.0.0
-            - --port=5000
-            - --backend-store-uri=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
-            - --default-artifact-root=s3://mlflow/
-            - --serve-artifacts
+            - /bin/sh
+            - -c
+            - |
+              pip install psycopg2-binary -q && \
+              mlflow server \
+                --host=0.0.0.0 \
+                --port=5000 \
+                --backend-store-uri=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB) \
+                --default-artifact-root=s3://mlflow/ \
+                --serve-artifacts
           env:
             - name: POSTGRES_USER
               valueFrom:
