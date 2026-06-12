@@ -140,7 +140,7 @@ spec:
 
     # ─── Step 2: Fine-tuner (GPU via runtimeClassName: nvidia) ─────────────────
     - name: run-fine-tuner
-      podSpecPatch: '{"runtimeClassName": "nvidia"}'
+      podSpecPatch: '{"runtimeClassName": "nvidia", "priorityClassName": "ml-training-high"}'
       inputs:
         parameters:
           - name: config
@@ -227,7 +227,7 @@ spec:
 
     # ─── Step 3: Evaluate ────────────────────────────────────────────────────────
     - name: run-evaluation
-      podSpecPatch: '{"runtimeClassName": "nvidia"}'
+      podSpecPatch: '{"runtimeClassName": "nvidia", "priorityClassName": "ml-training-high"}'
       inputs:
         parameters:
           - name: config
