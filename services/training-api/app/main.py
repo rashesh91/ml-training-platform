@@ -248,7 +248,7 @@ async def _submit_argo_workflow(job_id: str, config: dict):
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 f"{ARGO_SERVER}/api/v1/workflows/{ARGO_NAMESPACE}",
-                json=workflow_manifest,
+                json={"workflow": workflow_manifest},
             )
             resp.raise_for_status()
             argo_name = resp.json()["metadata"]["name"]
