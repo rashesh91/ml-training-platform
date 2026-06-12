@@ -10,7 +10,7 @@ spec:
   sourceRepos:
     - "https://github.com/rashesh91/ml-training-platform.git"
     - "https://helm.ngc.nvidia.com/nvidia"
-    - "https://kuberay.github.io/kuberay-helm-chart"
+    - "https://ray-project.github.io/kuberay-helm-chart"
     - "https://charts.min.io"
     - "https://argoproj.github.io/argo-helm"
   destinations:

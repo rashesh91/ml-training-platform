@@ -10,7 +10,7 @@ metadata:
 spec:
   project: ml-training
   source:
-    repoURL: https://kuberay.github.io/kuberay-helm-chart
+    repoURL: https://ray-project.github.io/kuberay-helm-chart
     chart: kuberay-operator
     targetRevision: 1.1.1
   destination:
