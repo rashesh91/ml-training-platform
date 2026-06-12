@@ -66,3 +66,16 @@ type: Opaque
 stringData:
   username: "mlflow"
   password: "mlflow-secret-change-me"
+---
+# minio alias — Helm deploys MinIO as "minio-e2e" but code expects "minio"
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: ml-training
+spec:
+  type: ExternalName
+  externalName: minio-e2e.ml-training.svc.cluster.local
+  ports:
+    - port: 9000
+      targetPort: 9000
