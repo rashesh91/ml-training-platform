@@ -83,20 +83,49 @@ async function loadJobs() {
 function renderJobs(jobs) {
   const tbody = document.getElementById('jobs-body');
   if (!jobs.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No jobs yet. Submit your first fine-tuning job →</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No jobs yet. Submit your first fine-tuning job →</td></tr>';
     return;
   }
-  tbody.innerHTML = jobs.map(j => `
+  tbody.innerHTML = jobs.map(j => {
+    const pct = j.progress != null ? Math.round(j.progress * 100) : null;
+    const progressCell = pct != null
+      ? `<div style="display:flex;align-items:center;gap:6px">
+           <div style="flex:1;background:var(--border);border-radius:4px;height:6px;min-width:80px">
+             <div style="width:${pct}%;background:var(--blue);height:6px;border-radius:4px;transition:width 0.5s"></div>
+           </div>
+           <span style="font-size:11px;color:var(--muted)">${pct}%</span>
+           ${j.epoch != null ? `<span style="font-size:11px;color:var(--muted)">ep${j.epoch.toFixed(1)}</span>` : ''}
+         </div>`
+      : '—';
+    const lossCell = j.loss != null ? `<span style="color:var(--warn);font-size:12px">${j.loss.toFixed(4)}</span>` : '—';
+    return `
     <tr>
       <td><code style="font-size:12px">${j.job_id}</code></td>
       <td>${j.model_name}</td>
       <td style="color:var(--muted);font-size:12px">${shortModel(j.base_model)}</td>
       <td>${statusBadge(j.status)}</td>
-      <td>${j.eval_score != null ? `<span style="color:${j.eval_passed ? '#3fb950' : '#f85149'}">${(j.eval_score*100).toFixed(1)}%</span>` : '—'}</td>
+      <td style="min-width:140px">${progressCell}</td>
+      <td>${lossCell}</td>
       <td style="color:var(--muted);font-size:12px">${relTime(j.created_at)}</td>
-      <td>${j.mlflow_run_url ? `<a class="mlflow-link" href="${j.mlflow_run_url}" target="_blank">View run →</a>` : '—'}</td>
-    </tr>
-  `).join('');
+      <td><button class="btn btn-sm" style="background:var(--border);color:var(--text)" onclick="showLogs('${j.job_id}','${j.model_name}')">Logs</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function showLogs(jobId, modelName) {
+  const panel = document.getElementById('log-panel');
+  const content = document.getElementById('log-content');
+  document.getElementById('log-panel-title').textContent = `Logs — ${modelName} (${jobId})`;
+  panel.style.display = '';
+  content.textContent = 'Loading…';
+  try {
+    const res = await fetch(`${API}/api/jobs/${jobId}/logs`);
+    const data = await res.json();
+    content.textContent = data.logs.length ? data.logs.join('\n') : '(no logs yet)';
+    content.scrollTop = content.scrollHeight;
+  } catch (e) {
+    content.textContent = `Error: ${e.message}`;
+  }
 }
 
 async function loadModels() {

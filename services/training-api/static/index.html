@@ -143,7 +143,8 @@
 
       <label>Base Model</label>
       <select id="base-model">
-        <option value="TinyLlama/TinyLlama-1.1B-Chat-v1.0">TinyLlama 1.1B — CPU-friendly (default)</option>
+        <option value="Qwen/Qwen2.5-3B-Instruct">Qwen2.5 3B Instruct — GPU (server default)</option>
+        <option value="TinyLlama/TinyLlama-1.1B-Chat-v1.0">TinyLlama 1.1B — CPU-friendly</option>
         <option value="mistralai/Mistral-7B-Instruct-v0.2">Mistral 7B Instruct — needs GPU</option>
         <option value="meta-llama/Llama-3.2-3B-Instruct">Llama 3.2 3B — mid-range</option>
       </select>
@@ -200,15 +201,24 @@
                 <th>Model Name</th>
                 <th>Base Model</th>
                 <th>Status</th>
-                <th>ROUGE-L</th>
+                <th>Progress</th>
+                <th>Loss</th>
                 <th>Created</th>
-                <th>MLflow</th>
+                <th>Logs</th>
               </tr>
             </thead>
             <tbody id="jobs-body">
-              <tr><td colspan="7" class="empty">No jobs yet. Submit your first fine-tuning job →</td></tr>
+              <tr><td colspan="8" class="empty">No jobs yet. Submit your first fine-tuning job →</td></tr>
             </tbody>
           </table>
+          <!-- Log viewer -->
+          <div id="log-panel" style="display:none;margin-top:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:13px;font-weight:600" id="log-panel-title">Logs</span>
+              <button class="btn btn-sm" style="background:var(--border);color:var(--text)" onclick="document.getElementById('log-panel').style.display='none'">✕ Close</button>
+            </div>
+            <div class="log" id="log-content">Loading...</div>
+          </div>
         </div>
       </div>
 

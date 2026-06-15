@@ -337,6 +337,72 @@ async def _deploy_to_inference_safe(model_name: str, version: str, run_id: str):
         logger.error("Inference deploy failed for %s v%s: %s", model_name, version, e)
 
 
+class ExternalJobRequest(BaseModel):
+    job_id: str
+    model_name: str
+    base_model: str = "Qwen/Qwen2.5-3B-Instruct"
+    status: str = "running"
+    log_line: Optional[str] = None
+    progress: Optional[float] = None      # 0.0–1.0
+    epoch: Optional[float] = None
+    loss: Optional[float] = None
+    mlflow_run_id: Optional[str] = None
+    eval_score: Optional[float] = None
+    eval_passed: Optional[bool] = None
+    error: Optional[str] = None
+
+
+@app.post("/api/external-jobs")
+async def register_external_job(req: ExternalJobRequest):
+    """Register or update a training job running outside k8s (e.g. systemd on host)."""
+    now = datetime.utcnow().isoformat()
+    if req.job_id not in _jobs:
+        _jobs[req.job_id] = {
+            "job_id": req.job_id,
+            "model_name": req.model_name,
+            "base_model": req.base_model,
+            "status": req.status,
+            "created_at": now,
+            "updated_at": now,
+            "mlflow_run_id": None,
+            "mlflow_run_url": None,
+            "eval_score": None,
+            "eval_passed": None,
+            "error": None,
+            "log_lines": [],
+        }
+    job = _jobs[req.job_id]
+    job["status"] = req.status
+    job["updated_at"] = now
+    if req.log_line:
+        job.setdefault("log_lines", []).append(req.log_line)
+        if len(job["log_lines"]) > 100:
+            job["log_lines"] = job["log_lines"][-100:]
+    if req.progress is not None:
+        job["progress"] = req.progress
+    if req.epoch is not None:
+        job["epoch"] = req.epoch
+    if req.loss is not None:
+        job["loss"] = req.loss
+    if req.mlflow_run_id:
+        job["mlflow_run_id"] = req.mlflow_run_id
+        job["mlflow_run_url"] = f"{MLFLOW_TRACKING_URI}/#/experiments/1/runs/{req.mlflow_run_id}"
+    if req.eval_score is not None:
+        job["eval_score"] = req.eval_score
+    if req.eval_passed is not None:
+        job["eval_passed"] = req.eval_passed
+    if req.error:
+        job["error"] = req.error
+    return {"ok": True, "job_id": req.job_id}
+
+
+@app.get("/api/jobs/{job_id}/logs")
+async def get_job_logs(job_id: str):
+    if job_id not in _jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"logs": _jobs[job_id].get("log_lines", [])}
+
+
 class InternalDeployRequest(BaseModel):
     model_name: str
     version: str
