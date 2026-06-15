@@ -1,7 +1,7 @@
 # Single-node E2E overrides — JarvisLabs L4 server
 # Images pre-loaded into k3s containerd via k3s ctr images import
 global:
-  imageRegistry: ""
+  imageRegistry: "ghcr.io/rashesh91/"
   imagePullPolicy: Never
 
 trainingApi:

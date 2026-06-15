@@ -5,6 +5,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
+COPY app/deploy_to_inference.py ./
 COPY static/ ./static/
 
 ENV PYTHONUNBUFFERED=1
