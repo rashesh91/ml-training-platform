@@ -172,6 +172,15 @@ services:
       <<: [*minio-env, *mlflow-env]
       USE_ARGO: "false"
       FINE_TUNER_URL: http://fine-tuner:8003
+      # ── Inference GitOps integration (leave blank to skip in local dev) ──────
+      GITHUB_TOKEN: ""
+      INFERENCE_GITOPS_REPO: "rashesh91/ml-inference-gitops"
+      INFERENCE_GITOPS_BRANCH: "main"
+      INFERENCE_GITOPS_VALUES_PATH: "applications/voice-platform/values.yaml"
+      ARGOCD_SERVER: ""
+      ARGOCD_TOKEN: ""
+      ARGOCD_APP_NAME: "voice-platform-prod"
+      ARGOCD_INSECURE: "false"
     ports:
       - "8004:8004"
     healthcheck:

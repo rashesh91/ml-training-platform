@@ -21,6 +21,16 @@ trainingApi:
   env:
     useArgo: "true"
     argoNamespace: ml-training
+    # ── Inference GitOps integration ────────────────────────────────────────────
+    # Set via sealed-secret or external-secrets in production; leave blank to skip.
+    githubToken: ""
+    inferenceGitopsRepo: "rashesh91/ml-inference-gitops"
+    inferenceGitopsBranch: "main"
+    inferenceGitopsValuesPath: "applications/voice-platform/values.yaml"
+    argocdServer: ""
+    argocdToken: ""
+    argocdAppName: "voice-platform-prod"
+    argocdInsecure: "false"
   ingress:
     enabled: true
     host: "training.YOUR_DOMAIN"
